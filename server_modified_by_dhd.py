@@ -791,7 +791,8 @@ def respond():  # 视图函数
             else:
                 return jsonencoder(0, "wrong")
         except Exception as e:
-            return jsonencoder(0, "wrong type:"+str(e))
+            print(traceback.print_exc())
+            return jsonencoder(0, "wrong type")
     else:
         return "Hello World"
 
