@@ -53,6 +53,7 @@ class MessageType():
     assignment = 'assignment'
     find_member = 'find_member'
     transfer = 'transfer'
+    quit_class = 'quit_class'
 
 
 def _format_addr(s):
@@ -96,7 +97,7 @@ def get_task_id(cur, data):
                             )
                         )
     mysql.get_db().commit()
-    return cur.fetchall()[0][0]
+    return cur.fetchall()[0][-1]
 
 def get_list_id(cur, data):
     cur.execute(
@@ -647,8 +648,8 @@ def respond():  # 视图函数
                         d['list_id'] = row[2]
                         d['name'] = row[3]
                         d['content'] = row[4]
-                        d['create_date'] = row[5]
-                        d['due_date'] = row[6]
+                        d['create_date'] = str(row[5])
+                        d['due_date'] = str(row[6])
                         d['pos_x'] = row[7]
                         d['pos_y'] = row[8]
                         d['is_finished'] = row[9]
@@ -661,12 +662,41 @@ def respond():  # 视图函数
                     print(traceback.print_exc())
                     return jsonencoder(0, "Joining class Failed. Please check")
                 cur.close()
-                resp = dict(
-                    list_info={'id':data['list_id'], 'name':data['list_name']},
-                    task_list=objects_list
-                )
+                resp = {'list_id':data['list_id'], 'task_list':objects_list}
+                
+                print(objects_list)
                 return jsonencoder(1, 'success', resp)
             
+            elif data['type'] == MessageType.quit_class:
+                cur = mysql.get_db().cursor()
+                # 验证登录
+                try:
+                    cur.execute(
+                        "SELECT * FROM pkutodo.user WHERE email='{email}' and password='{password}';".
+                        format(email=data['email'], password=data['password']))
+                except:
+                    cur.close()
+                    return jsonencoder(0, 'not existing user or wrong password')
+                
+                try:
+                    cur.execute(
+                        "Delete from class_member where user_id={} and list_id={}".format(
+                            data["user_id"], data["list_id"]
+                        )
+                    )
+                    cur.execute(
+                        "Delete from task where user_id={} and list_id={}".format(
+                            data["user_id"], data["list_id"]
+                        )
+                    )
+                    mysql.get_db().commit()
+                except:
+                    cur.close()
+                    print(traceback.pritn_exc())
+                    return jsonencoder(0, "Cannot quit class")
+                cur.close()
+                return jsonencoder(1, 'success')
+
             elif data['type'] == MessageType.find_list:
                 cur = mysql.get_db().cursor()
                 # 验证登录
@@ -788,6 +818,9 @@ def respond():  # 视图函数
                     return jsonencoder(0, "Admin transfer failed. Please check.")
                 cur.close()
                 return jsonencoder(1, 'success')
+            
+            
+                
             else:
                 return jsonencoder(0, "wrong")
         except Exception as e:
