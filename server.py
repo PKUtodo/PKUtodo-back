@@ -14,6 +14,10 @@ import urllib
 import smtplib
 import socket
 from enum import Enum
+from flask import send_from_directory
+from flask.json import jsonify
+import flask
+import os
 
 app = Flask(__name__)  # 实例化Flask对象
 mysql = MySQL()
@@ -134,7 +138,6 @@ def respond():  # 视图函数
                 except Exception as e:
                     return jsonencoder(0, "unknown failure")
             elif data['type'] == MessageType.login:
-                # print("!!!!")
                 try:
                     cur = mysql.get_db().cursor()
                     print(
@@ -368,20 +371,6 @@ def respond():  # 视图函数
             return jsonencoder(0, "wrong type")
     else:
         return "Hello World"
-
-
-@app.route("/req", methods=["POST", "GET"])
-def req():
-    print(request.method)
-    print(request.values.to_dict())
-    return "hello"
-
-
-@app.route('/user/<username>')
-def show_user_profile(username):
-    # show the user profile for that user
-    return 'User %s' % escape(username)
-
 
 # 监听地址为0.0.0.0,表示服务器的所有网卡
 # 5000是监听端口
