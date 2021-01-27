@@ -196,7 +196,8 @@ def respond():  # 视图函数
                         format(email=data['email'], password=data['password']))
                 except:
                     return jsonencoder(0, 'not existing user or wrong password')
-                objects_list = []
+                list_list = []
+                task_list=[]
                 cur.execute(
                     "SELECT * FROM pkutodo.list WHERE admin_id='{id}';".format(id=data['user_id']))
                 results = cur.fetchall()
@@ -206,7 +207,8 @@ def respond():  # 视图函数
                     d['admin_id'] = results[1]
                     d['is_public'] = results[2]
                     d['list_name'] = results[3]
-                    objects_list.append(d)
+                    list_list.append(d)
+                
                 cur.execute(
                     "SELECT * FROM pkutodo.task WHERE user_id='{id}';".format(id=data['user_id']))
                 results = cur.fetchall()
@@ -222,9 +224,10 @@ def respond():  # 视图函数
                     d['position_x'] = results[7]
                     d['position_y'] = results[8]
                     d['is_finished'] = results[9]
-                    objects_list.append(d)
+                    task_list.append(d)
+                object_dic={'list':list_list,'task':task_list}
                 # j = json.dumps(objects_list)
-                j = jsonencoder(1, 'success', data=objects_list)
+                j = jsonencoder(1, 'success', data=object_dic)
                 cur.close()
                 return j
             elif data['type'] == MessageType.add_list:
