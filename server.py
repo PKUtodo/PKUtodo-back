@@ -196,8 +196,10 @@ def respond():  # 视图函数
                         format(email=data['email'], password=data['password']))
                 except:
                     return jsonencoder(0, 'not existing user or wrong password')
-                list_list = []
-                task_list=[]
+
+                list_list = [] # 来自用户
+                task_list = [] # 来自用户
+                class_list = [] # 所有课程
                 cur.execute(
                     "SELECT * FROM pkutodo.list WHERE admin_id='{id}';".format(id=data['user_id']))
                 results = cur.fetchall()
@@ -225,7 +227,20 @@ def respond():  # 视图函数
                     d['position_y'] = results[8]
                     d['is_finished'] = results[9]
                     task_list.append(d)
-                object_dic={'list':list_list,'task':task_list}
+
+                cur.execute(
+                    "SELECT * FROM pkutodo.list WHERE is_public=1;"
+                )
+                results = cur.fetchall()
+                for row in results:
+                    d = collections.OrderedDict()
+                    d['list_id'] = results[0]
+                    d['admin_id'] = results[1]
+                    d['is_public'] = results[2]
+                    d['list_name'] = results[3]
+                    class_list.append(d)
+
+                object_dic={'list':list_list,'task':task_list, 'class':class_list}
                 # j = json.dumps(objects_list)
                 j = jsonencoder(1, 'success', data=object_dic)
                 cur.close()
