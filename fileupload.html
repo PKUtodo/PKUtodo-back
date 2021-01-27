@@ -1,0 +1,59 @@
+<script>
+    function getUrlParam(name) {
+        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+        var r = window.location.search.substr(1).match(reg);
+        if (r!=null) {
+            return decodeURI(r[2]);
+        }
+        return null;
+    }
+    function uploadfile() {
+    var files = document.getElementById('file_upload').files; //files是文件选择框选择的文件对象数组
+
+    if(files.length == 0) return;
+
+    var form = new FormData(),
+        url = 'http://localhost:5000/fileupload', //服务器上传地址
+        file = files[0];
+    form.append('file', file);
+    var taskid = getUrlParam('taskid');
+    if (taskid == null) {
+
+        return false;
+    }
+    form.append('taskid', getUrlParam('taskid'));
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("post", url, true);
+
+//上传进度事件
+    xhr.upload.addEventListener("progress", function(result) {
+        if (result.lengthComputable) {
+            //上传进度
+            var percent = (result.loaded / result.total * 100).toFixed(2);
+        }
+    }, false);
+
+    xhr.addEventListener("readystatechange", function() {
+        var result = xhr;
+        console.log(result)
+        if (result.status != 200) { //error
+            console.log('上传失败', result.status, result.statusText, result.response);
+            document.getElementById('fail').style['visibility'] = 'visible';
+            document.getElementById('success').style['visibility'] = 'hidden';
+        }
+        else if (result.readyState == 4) { //finished
+            console.log('上传成功', result);
+            document.getElementById('success').style['visibility'] = 'visible';
+            document.getElementById('fail').style['visibility'] = 'hidden';
+        }
+
+    });
+    xhr.send(form); //开始上传
+}
+</script>
+<input type="file" name="file_upload" id="file_upload" accept=".zip,.7z,.rar,.ZIP,.7Z,.RAR">
+<button onclick="uploadfile()">提交</button>
+<p id="success" style="visibility:hidden">上传成功，请关闭网页</p>
+<p id="fail" style="visibility:hidden">上传失败，请重新打开网页</p>
+<p id="wrongurl" style="visibility:hidden">网站调用错误！</p>

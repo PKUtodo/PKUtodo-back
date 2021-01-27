@@ -1,36 +1,28 @@
 from flask import Flask, request  # 导入Flask类
 from re import *
-import pymysql
+from flask.helpers import send_from_directory
 from flaskext.mysql import MySQL
 import random
 import smtplib
-from email import encoders
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
-import json
-import logging
-import urllib
-import smtplib
-import socket
-from enum import Enum
-import collections
-import traceback
-import copy
+import os, copy, traceback, collections, smtplib, json
+from config import * # 导入配置
+
+
 
 app = Flask(__name__)  # 实例化Flask对象
-mysql = MySQL()
 app.config['MYSQL_DATABASE_USER'] = 'root'
 app.config['MYSQL_DATABASE_PASSWORD'] = '12345678'
 app.config['MYSQL_DATABASE_DB'] = 'pkutodo'
 app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
+
+mysql = MySQL()
 mysql.init_app(app)
 
-types = ['set_up', 'verify', 'login', 'add_task', 'del_task', 'del_list', 'finish_task',
-         'find', 'join', 'handle', 'assignment', 'transfer']
 new_user_list = []  # 存储在注册过程中的用户类实例
 verify_code = []
-
 
 class MessageType():
     """
@@ -828,6 +820,39 @@ def respond():  # 视图函数
             return jsonencoder(0, "wrong type")
     else:
         return "Hello World"
+
+@app.route("/filesubmit", methods=['post', 'get'])
+def fileuploadpage():
+    return send_from_directory("./", "fileupload.html")
+
+
+
+@app.route('/fileupload', methods=['post','get'])
+def upload_video():
+    upload_path = '/Users/tian/Desktop/软件工程/file'
+    file = request.files['file']
+    taskid = request.values.to_dict()['taskid']
+    # taskid = flask.request.data['taskid']
+    
+    if not file:
+        return "no file specified"
+    filename = taskid + '_' + file.filename
+    extension = filename.split('.')[-1]
+    print(filename)
+    if extension.lower() in SUPPORT_FORMAT:
+        file.save(os.path.join(upload_path, filename))
+    else:
+        return "not supported format"
+    
+    # 写入数据库
+    cur = mysql.get_db().cursor()
+
+    cur.execute("""
+        INSERT INFO
+    """)
+    # TODO: 还没有写完
+    cur.close()
+
 
 
 # 监听地址为0.0.0.0,表示服务器的所有网卡
