@@ -718,7 +718,7 @@ def respond():  # 视图函数
                     )
 
                     results = cur.fetchall()
-                    
+
                     if len(results) != 0:
                         # 直接将任意一个成员设定为管理员
                         cur.execute(
@@ -735,10 +735,10 @@ def respond():  # 视图函数
                         )
 
                     mysql.get_db().commit()
-                except:
+                except Exception as e:
                     cur.close()
                     print(traceback.pritn_exc())
-                    return jsonencoder(0, "Cannot quit class")
+                    return jsonencoder(0, "Cannot quit class, error: {}".format(e))
                 cur.close()
                 return jsonencoder(1, 'success')
 
