@@ -160,7 +160,12 @@ def respond():  # 视图函数
                                        ))
                             mysql.get_db().commit()
                             cur.close()
-                            return jsonencoder(1, "set up success")
+                            user_info={}
+                            user_info["user_id"]=user.id
+                            user_info["email"]=user.email
+                            user_info["password"]=user.password
+                            user_info["name"]=user.name
+                            return jsonencoder(1, "set up success",user_info)
                         elif (email == user.email):
                             return jsonencoder(0, "set up fail")
                         return jsonencoder(0, "no such user to set up")
@@ -181,6 +186,8 @@ def respond():  # 视图函数
                     user_info = {}
                     user_info['user_id'] = user_[0][0]
                     user_info['password'] = data['password']
+                    user_info['name']=user_[0][1]
+                    user_info['email']=user_[0][2]
                     user_info['success'] = 1
                     # user_j = json.dumps(user_info)
                     user_j = jsonencoder(1, 'success', user_info)
@@ -201,14 +208,14 @@ def respond():  # 视图函数
                 task_list = [] # 来自用户
                 class_list = [] # 所有课程
                 cur.execute(
-                    "SELECT * FROM pkutodo.list WHERE admin_id='{id}';".format(id=data['user_id']))
+                    "SELECT * FROM pkutodo.list WHERE admin_id='{id}' UNION SELECT * FROM pkutodo.list WHERE id IN (SELECT list_id FROM pkutodo.class_member WHERE user_id = {id} ) ;".format(id=data['user_id']))
                 results = cur.fetchall()
                 for row in results:
                     d = collections.OrderedDict()
-                    d['list_id'] = results[0]
-                    d['admin_id'] = results[1]
-                    d['is_public'] = results[2]
-                    d['list_name'] = results[3]
+                    d['list_id'] = row[0]
+                    d['admin_id'] = row[1]
+                    d['is_public'] = row[2]
+                    d['list_name'] = row[3]
                     list_list.append(d)
                 
                 cur.execute(
@@ -216,16 +223,16 @@ def respond():  # 视图函数
                 results = cur.fetchall()
                 for row in results:
                     d = collections.OrderedDict()
-                    d['task_id'] = results[0]
-                    d['user_id'] = results[1]
-                    d['list_id'] = results[2]
-                    d['task_name'] = results[3]
-                    d['content'] = results[4]
-                    d['create_date'] = results[5]
-                    d['due_date'] = results[6]
-                    d['position_x'] = results[7]
-                    d['position_y'] = results[8]
-                    d['is_finished'] = results[9]
+                    d['task_id'] = row[0]
+                    d['user_id'] = row[1]
+                    d['list_id'] = row[2]
+                    d['task_name'] = row[3]
+                    d['content'] = row[4]
+                    d['create_date'] = row[5]
+                    d['due_date'] = row[6]
+                    d['position_x'] = row[7]
+                    d['position_y'] = row[8]
+                    d['is_finished'] = row[9]
                     task_list.append(d)
 
                 cur.execute(
@@ -234,10 +241,10 @@ def respond():  # 视图函数
                 results = cur.fetchall()
                 for row in results:
                     d = collections.OrderedDict()
-                    d['list_id'] = results[0]
-                    d['admin_id'] = results[1]
-                    d['is_public'] = results[2]
-                    d['list_name'] = results[3]
+                    d['list_id'] = row[0]
+                    d['admin_id'] = row[1]
+                    d['is_public'] = row[2]
+                    d['list_name'] = row[3]
                     class_list.append(d)
 
                 object_dic={'list':list_list,'task':task_list, 'class':class_list}
