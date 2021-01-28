@@ -691,21 +691,49 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT * FROM pkutodo.user WHERE email='{email}' and password='{password}';".
                         format(email=data['email'], password=data['password']))
+                    
                 except:
                     cur.close()
                     return jsonencoder(0, 'not existing user or wrong password')
                 
                 try:
+                    # 删除class_member中的记录
                     cur.execute(
                         "Delete from class_member where user_id={} and list_id={}".format(
                             data["user_id"], data["list_id"]
                         )
                     )
+                    # 删除task中的所有记录
                     cur.execute(
                         "Delete from task where user_id={} and list_id={}".format(
                             data["user_id"], data["list_id"]
                         )
                     )
+
+                    # 查看同list中成员数量
+                    cur.execute(
+                        "SELECT * FROM class_member WHERE list_id={}".format(
+                            data['list_id']
+                        )
+                    )
+
+                    results = cur.fetchall()
+                    
+                    if len(results) != 0:
+                        # 直接将任意一个成员设定为管理员
+                        cur.execute(
+                            "UPDATE task SET admin_id=-1 WHERE list_id={list_id}".format(
+                                list_id=data['list_id']
+                            )
+                        )
+                    else:
+                        # 直接设为没有管理员的list
+                        cur.execute(
+                            "UPDATE task SET admin_id={new_admin_id} WHERE list_id={list_id}".format(
+                                list_id=data['list_id'], new_admin_id=results[0][1]
+                            )
+                        )
+
                     mysql.get_db().commit()
                 except:
                     cur.close()
