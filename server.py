@@ -4,6 +4,7 @@ from re import *
 from flask.helpers import send_from_directory
 from flaskext.mysql import MySQL
 import random
+import imaplib
 import smtplib
 from email.header import Header
 from email.mime.text import MIMEText
@@ -17,7 +18,7 @@ import datetime
 
 
 app = Flask(__name__)  # 实例化Flask对象
-app.config['MYSQL_DATABASE_USER'] = 'root'
+app.config['MYSQL_DATABASE_USER'] = 'pkutodo'
 app.config['MYSQL_DATABASE_PASSWORD'] = '12345678'
 app.config['MYSQL_DATABASE_DB'] = 'pkutodo'
 app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
@@ -112,10 +113,11 @@ def get_list_id(cur, data):
 
 @app.route("/", methods=["POST", "GET"])  # app中的route装饰器
 def respond():  # 视图函数
-    data = json.loads(request.get_data(as_text=True))
-    print(data)
     if request.method == 'POST':
         try:
+            # print("request: {}". format(request.get_data(as_text=True)))
+            data = json.loads(request.get_data(as_text=True))
+            # print(data)
             if(data['type'] == MessageType.set_up):
                 print(data['type'])
                 verify_code.append((data['email'], random.randint(1000, 9999)))
@@ -124,7 +126,7 @@ def respond():  # 视图函数
                 mail_host = "smtp.163.com"  # 设置服务器
                 mail_user = "pkutodo@163.com"  # 用户名
                 mail_pass = "ENRHVYHFKAKADNUG"  # 口令
-
+                
                 sender = 'pkutodo@163.com'
                 receivers = [data['email']]  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
 
@@ -135,8 +137,8 @@ def respond():  # 视图函数
                 msg['Subject'] = Header("PKUTODO注册验证码", 'utf-8').encode()
 
                 try:
-                    smtpObj = smtplib.SMTP()
-                    smtpObj.connect(mail_host, 25)    # 25 为 SMTP 端口号
+                    smtpObj = smtplib.SMTP_SSL(mail_host, 465)
+                    # smtpObj.connect(mail_host, 465)    # 25 为 SMTP 端口号
                     smtpObj.login(mail_user, mail_pass)
                     #smtpObj.sendmail(sender, receivers, message.as_string())
                     print(receivers)
@@ -432,7 +434,7 @@ def respond():  # 视图函数
                     # 验证当前用户是否为list的admin
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
                         data['task_id']))
-                    admin_id = cur.fetchall()[0][0]
+                    admin_id = cur.fetchall()[0]
                     if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
@@ -449,7 +451,8 @@ def respond():  # 视图函数
                             position_y=data['position_y']
                         )
                     )
-                except:
+                except Exception as e:
+                    print(e)
                     cur.close()
                     # print(traceback.print_exc())
                     return jsonencoder(0, 'Modifying failed.')
@@ -936,4 +939,4 @@ def filedownload():
 # 监听地址为0.0.0.0,表示服务器的所有网卡
 # 5000是监听端口
 # debug=True表示启动debug模式。当代码有改动时,Flask会自动加载,无序重启！
-app.run("0.0.0.0", 5000, debug=False)  # 启动Flask服务
+app.run("0.0.0.0", 8080, debug=False)  # 启动Flask服务
