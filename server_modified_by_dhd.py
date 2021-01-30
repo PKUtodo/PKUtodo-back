@@ -1,36 +1,32 @@
+
 from flask import Flask, request  # 导入Flask类
 from re import *
-import pymysql
+from flask.helpers import send_from_directory
 from flaskext.mysql import MySQL
 import random
 import smtplib
-from email import encoders
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
+import os, copy, traceback, collections, smtplib, json
+from config import * # 导入配置
 import json
-import logging
-import urllib
-import smtplib
-import socket
-from enum import Enum
-import collections
-import traceback
-import copy
+import datetime
+
+
+
 
 app = Flask(__name__)  # 实例化Flask对象
-mysql = MySQL()
 app.config['MYSQL_DATABASE_USER'] = 'root'
 app.config['MYSQL_DATABASE_PASSWORD'] = '12345678'
 app.config['MYSQL_DATABASE_DB'] = 'pkutodo'
 app.config['MYSQL_DATABASE_HOST'] = '127.0.0.1'
+
+mysql = MySQL()
 mysql.init_app(app)
 
-types = ['set_up', 'verify', 'login', 'add_task', 'del_task', 'del_list', 'finish_task',
-         'find', 'join', 'handle', 'assignment', 'transfer']
 new_user_list = []  # 存储在注册过程中的用户类实例
 verify_code = []
-
 
 class MessageType():
     """
@@ -72,13 +68,19 @@ class User():
         self.email = email
         self.password = password
 
+class DateEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj,datetime.datetime):
+            return obj.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            return json.JSONEncoder.default(self,obj)
 
 def jsonencoder(ifsuccess, response="", data=None):
     if ifsuccess:
         if data:
-            return json.dumps({"success": 1, "data":data})
+            return json.dumps({"success": 1, "data":data},cls=DateEncoder)
         else:
-            return json.dumps({"success": 1})
+            return json.dumps({"success": 1},cls=DateEncoder)
     else:
         return json.dumps({"success": 0, "error_msg": response})
 
@@ -110,8 +112,8 @@ def get_list_id(cur, data):
 
 @app.route("/", methods=["POST", "GET"])  # app中的route装饰器
 def respond():  # 视图函数
-    print(request.values)
-    data = request.values.to_dict()
+    data = json.loads(request.get_data(as_text=True))
+    print(data)
     if request.method == 'POST':
         try:
             if(data['type'] == MessageType.set_up):
@@ -168,7 +170,12 @@ def respond():  # 视图函数
                                        ))
                             mysql.get_db().commit()
                             cur.close()
-                            return jsonencoder(1, "set up success")
+                            user_info={}
+                            user_info["user_id"]=user.id
+                            user_info["email"]=user.email
+                            user_info["password"]=user.password
+                            user_info["name"]=user.name
+                            return jsonencoder(1, "set up success",user_info)
                         elif (email == user.email):
                             return jsonencoder(0, "set up fail")
                         return jsonencoder(0, "no such user to set up")
@@ -189,6 +196,8 @@ def respond():  # 视图函数
                     user_info = {}
                     user_info['user_id'] = user_[0][0]
                     user_info['password'] = data['password']
+                    user_info['name']=user_[0][1]
+                    user_info['email']=user_[0][2]
                     user_info['success'] = 1
                     # user_j = json.dumps(user_info)
                     user_j = jsonencoder(1, 'success', user_info)
@@ -204,35 +213,53 @@ def respond():  # 视图函数
                         format(email=data['email'], password=data['password']))
                 except:
                     return jsonencoder(0, 'not existing user or wrong password')
-                objects_list = []
+
+                list_list = [] # 来自用户
+                task_list = [] # 来自用户
+                class_list = [] # 所有课程
                 cur.execute(
-                    "SELECT * FROM pkutodo.list WHERE admin_id='{id}';".format(id=data['user_id']))
+                    "SELECT * FROM pkutodo.list WHERE admin_id='{id}' UNION SELECT * FROM pkutodo.list WHERE id IN (SELECT list_id FROM pkutodo.class_member WHERE user_id = {id} ) ;".format(id=data['user_id']))
                 results = cur.fetchall()
                 for row in results:
                     d = collections.OrderedDict()
-                    d['list_id'] = results[0]
-                    d['admin_id'] = results[1]
-                    d['is_public'] = results[2]
-                    d['list_name'] = results[3]
-                    objects_list.append(d)
+                    d['list_id'] = row[0]
+                    d['admin_id'] = row[1]
+                    d['is_public'] = row[2]
+                    d['list_name'] = row[3]
+                    list_list.append(d)
+                
                 cur.execute(
                     "SELECT * FROM pkutodo.task WHERE user_id='{id}';".format(id=data['user_id']))
                 results = cur.fetchall()
                 for row in results:
                     d = collections.OrderedDict()
-                    d['task_id'] = results[0]
-                    d['user_id'] = results[1]
-                    d['list_id'] = results[2]
-                    d['task_name'] = results[3]
-                    d['content'] = results[4]
-                    d['create_date'] = results[5]
-                    d['due_date'] = results[6]
-                    d['position_x'] = results[7]
-                    d['position_y'] = results[8]
-                    d['is_finished'] = results[9]
-                    objects_list.append(d)
+                    d['task_id'] = row[0]
+                    d['user_id'] = row[1]
+                    d['list_id'] = row[2]
+                    d['task_name'] = row[3]
+                    d['content'] = row[4]
+                    d['create_date'] = row[5]
+                    d['due_date'] = row[6]
+                    d['position_x'] = row[7]
+                    d['position_y'] = row[8]
+                    d['is_finished'] = row[9]
+                    task_list.append(d)
+
+                cur.execute(
+                    "SELECT * FROM pkutodo.list WHERE is_public=1;"
+                )
+                results = cur.fetchall()
+                for row in results:
+                    d = collections.OrderedDict()
+                    d['list_id'] = row[0]
+                    d['admin_id'] = row[1]
+                    d['is_public'] = row[2]
+                    d['list_name'] = row[3]
+                    class_list.append(d)
+
+                object_dic={'list':list_list,'task':task_list, 'class':class_list}
                 # j = json.dumps(objects_list)
-                j = jsonencoder(1, 'success', data=objects_list)
+                j = jsonencoder(1, 'success', data=object_dic)
                 cur.close()
                 return j
             elif data['type'] == MessageType.add_list:
@@ -281,7 +308,7 @@ def respond():  # 视图函数
                         "SELECT admin_id, is_public from list where id={}".format(data['list_id']))
                     admin_id, is_public = cur.fetchall()[0]
                     print(admin_id, is_public)
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -354,7 +381,7 @@ def respond():  # 视图函数
                     task_id = get_task_id(cur, attr)
                 except Exception as e:
                     cur.close()
-                    # print(traceback.print_exc())
+                    print(traceback.print_exc())
                     return jsonencoder(0, 'Insert Failed. Please check')
                     
                 cur.close()
@@ -376,7 +403,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id = cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -406,7 +433,7 @@ def respond():  # 视图函数
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
                         data['task_id']))
                     admin_id = cur.fetchall()[0][0]
-                    if str(admin_id) != data['user_id']:
+                    if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -447,7 +474,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id= cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
                     cur.execute(
@@ -476,7 +503,7 @@ def respond():  # 视图函数
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
                         data['task_id']))
                     admin_id = cur.fetchall()[0][0]
-                    if str(admin_id) != data['user_id']:
+                    if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -548,7 +575,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id= cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
                         
@@ -674,26 +701,54 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT * FROM pkutodo.user WHERE email='{email}' and password='{password}';".
                         format(email=data['email'], password=data['password']))
+                    
                 except:
                     cur.close()
                     return jsonencoder(0, 'not existing user or wrong password')
                 
                 try:
+                    # 删除class_member中的记录
                     cur.execute(
                         "Delete from class_member where user_id={} and list_id={}".format(
                             data["user_id"], data["list_id"]
                         )
                     )
+                    # 删除task中的所有记录
                     cur.execute(
                         "Delete from task where user_id={} and list_id={}".format(
                             data["user_id"], data["list_id"]
                         )
                     )
+
+                    # 查看同list中成员数量
+                    cur.execute(
+                        "SELECT * FROM class_member WHERE list_id={}".format(
+                            data['list_id']
+                        )
+                    )
+
+                    results = cur.fetchall()
+
+                    if len(results) != 0:
+                        # 直接将任意一个成员设定为管理员
+                        cur.execute(
+                            "UPDATE list SET admin_id=-1 WHERE id={list_id}".format(
+                                list_id=data['list_id']
+                            )
+                        )
+                    else:
+                        # 直接设为没有管理员的list
+                        cur.execute(
+                            "UPDATE list SET admin_id={new_admin_id} WHERE id={list_id}".format(
+                                list_id=data['list_id'], new_admin_id=-1
+                            )
+                        )
+
                     mysql.get_db().commit()
-                except:
+                except Exception as e:
                     cur.close()
-                    print(traceback.pritn_exc())
-                    return jsonencoder(0, "Cannot quit class")
+                    print(traceback.print_exc())
+                    return jsonencoder(0, "Cannot quit class, error: {}".format(e))
                 cur.close()
                 return jsonencoder(1, 'success')
 
@@ -757,7 +812,7 @@ def respond():  # 视图函数
                 objects_list = []
                 try:
                     cur.execute(
-                        "SELECT * FROM class_member where list_id = {list_id}".format(
+                        "SELECT * FROM user WHERE id IN (SELECT user_id FROM class_member where list_id = {list_id})".format(
                             list_id=data['list_id']
                         )
                     )
@@ -766,8 +821,9 @@ def respond():  # 视图函数
                     print(results)
                     for row in results:
                         d = collections.OrderedDict()
-                        d['user_id'] = row[1]
-
+                        d['id'] = row[0]
+                        d['name'] = row[1]
+                        d['email'] = row[2]
                         objects_list.append(copy.deepcopy(d))
                 except:
                     cur.close()
@@ -800,7 +856,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id= cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -829,8 +885,55 @@ def respond():  # 视图函数
     else:
         return "Hello World"
 
+@app.route("/filesubmit", methods=['post', 'get'])
+def fileuploadpage():
+    return send_from_directory("./", "fileupload.html")
+
+
+
+@app.route('/fileupload', methods=['post','get'])
+def fileupload():
+    try:
+        upload_path = './file'
+        file = request.files['file']
+        taskid = request.values.to_dict()['taskid']
+        # taskid = flask.request.data['taskid']
+        print(taskid, file.filename)
+        if not file:
+            return "no file specified"
+        filename = taskid + '_' + file.filename
+        extension = filename.split('.')[-1]
+        print(filename)
+        if extension.lower() in SUPPORT_FORMAT:
+            file.save(os.path.join(upload_path, filename))
+        else:
+            return "not supported format"
+
+        try:
+            # 写入数据库
+            cur = mysql.get_db().cursor()
+
+            cur.execute(
+                "INSERT INTO file(taskid, filepath, filename) VALUES({taskid}, '{filepath}', '{filename}')".format(taskid=taskid, filename=filename, filepath=os.path.join(upload_path, filename))
+            )
+
+            cur.close()
+            return jsonencoder(1, "upload success")
+        except Exception as e:
+            print(e) # errors found when updating databases.
+            return jsonencoder(0, e)
+    except Exception as e:
+        print(e)
+        return jsonencoder(0, e)
+
+@app.route('/filedoownload', methods=['post','get'])
+def filedownload():
+    pass 
+    
+
+
 
 # 监听地址为0.0.0.0,表示服务器的所有网卡
 # 5000是监听端口
 # debug=True表示启动debug模式。当代码有改动时,Flask会自动加载,无序重启！
-app.run("0.0.0.0", 5000, debug=False)  # 启动Flask服务
+app.run("0.0.0.0", 5888, debug=False)  # 启动Flask服务

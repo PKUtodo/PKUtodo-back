@@ -1,3 +1,4 @@
+
 from flask import Flask, request  # 导入Flask类
 from re import *
 from flask.helpers import send_from_directory
@@ -9,6 +10,9 @@ from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
 import os, copy, traceback, collections, smtplib, json
 from config import * # 导入配置
+import json
+import datetime
+
 
 
 
@@ -64,13 +68,19 @@ class User():
         self.email = email
         self.password = password
 
+class DateEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj,datetime.datetime):
+            return obj.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            return json.JSONEncoder.default(self,obj)
 
 def jsonencoder(ifsuccess, response="", data=None):
     if ifsuccess:
         if data:
-            return json.dumps({"success": 1, "data":data})
+            return json.dumps({"success": 1, "data":data},cls=DateEncoder)
         else:
-            return json.dumps({"success": 1})
+            return json.dumps({"success": 1},cls=DateEncoder)
     else:
         return json.dumps({"success": 0, "error_msg": response})
 
@@ -102,8 +112,8 @@ def get_list_id(cur, data):
 
 @app.route("/", methods=["POST", "GET"])  # app中的route装饰器
 def respond():  # 视图函数
-    print(request.values)
-    data = request.values.to_dict()
+    data = json.loads(request.get_data(as_text=True))
+    print(data)
     if request.method == 'POST':
         try:
             if(data['type'] == MessageType.set_up):
@@ -298,7 +308,7 @@ def respond():  # 视图函数
                         "SELECT admin_id, is_public from list where id={}".format(data['list_id']))
                     admin_id, is_public = cur.fetchall()[0]
                     print(admin_id, is_public)
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -371,7 +381,7 @@ def respond():  # 视图函数
                     task_id = get_task_id(cur, attr)
                 except Exception as e:
                     cur.close()
-                    # print(traceback.print_exc())
+                    print(traceback.print_exc())
                     return jsonencoder(0, 'Insert Failed. Please check')
                     
                 cur.close()
@@ -393,7 +403,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id = cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -423,7 +433,7 @@ def respond():  # 视图函数
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
                         data['task_id']))
                     admin_id = cur.fetchall()[0][0]
-                    if str(admin_id) != data['user_id']:
+                    if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -464,7 +474,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id= cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
                     cur.execute(
@@ -493,7 +503,7 @@ def respond():  # 视图函数
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
                         data['task_id']))
                     admin_id = cur.fetchall()[0][0]
-                    if str(admin_id) != data['user_id']:
+                    if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -565,7 +575,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id= cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
                         
@@ -722,22 +732,22 @@ def respond():  # 视图函数
                     if len(results) != 0:
                         # 直接将任意一个成员设定为管理员
                         cur.execute(
-                            "UPDATE task SET admin_id=-1 WHERE list_id={list_id}".format(
+                            "UPDATE list SET admin_id=-1 WHERE id={list_id}".format(
                                 list_id=data['list_id']
                             )
                         )
                     else:
                         # 直接设为没有管理员的list
                         cur.execute(
-                            "UPDATE task SET admin_id={new_admin_id} WHERE list_id={list_id}".format(
-                                list_id=data['list_id'], new_admin_id=results[0][1]
+                            "UPDATE list SET admin_id={new_admin_id} WHERE id={list_id}".format(
+                                list_id=data['list_id'], new_admin_id=-1
                             )
                         )
 
                     mysql.get_db().commit()
                 except Exception as e:
                     cur.close()
-                    print(traceback.pritn_exc())
+                    print(traceback.print_exc())
                     return jsonencoder(0, "Cannot quit class, error: {}".format(e))
                 cur.close()
                 return jsonencoder(1, 'success')
@@ -802,7 +812,7 @@ def respond():  # 视图函数
                 objects_list = []
                 try:
                     cur.execute(
-                        "SELECT * FROM class_member where list_id = {list_id}".format(
+                        "SELECT * FROM user WHERE id IN (SELECT user_id FROM class_member where list_id = {list_id})".format(
                             list_id=data['list_id']
                         )
                     )
@@ -811,8 +821,9 @@ def respond():  # 视图函数
                     print(results)
                     for row in results:
                         d = collections.OrderedDict()
-                        d['user_id'] = row[1]
-
+                        d['id'] = row[0]
+                        d['name'] = row[1]
+                        d['email'] = row[2]
                         objects_list.append(copy.deepcopy(d))
                 except:
                     cur.close()
@@ -845,7 +856,7 @@ def respond():  # 视图函数
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
                     admin_id= cur.fetchall()[0][0]
-                    if str(admin_id) != data["user_id"]:
+                    if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
@@ -881,30 +892,44 @@ def fileuploadpage():
 
 
 @app.route('/fileupload', methods=['post','get'])
-def upload_video():
-    upload_path = '/Users/tian/Desktop/软件工程/file'
-    file = request.files['file']
-    taskid = request.values.to_dict()['taskid']
-    # taskid = flask.request.data['taskid']
-    
-    if not file:
-        return "no file specified"
-    filename = taskid + '_' + file.filename
-    extension = filename.split('.')[-1]
-    print(filename)
-    if extension.lower() in SUPPORT_FORMAT:
-        file.save(os.path.join(upload_path, filename))
-    else:
-        return "not supported format"
-    
-    # 写入数据库
-    cur = mysql.get_db().cursor()
+def fileupload():
+    try:
+        upload_path = './file'
+        file = request.files['file']
+        taskid = request.values.to_dict()['taskid']
+        # taskid = flask.request.data['taskid']
+        print(taskid, file.filename)
+        if not file:
+            return "no file specified"
+        filename = taskid + '_' + file.filename
+        extension = filename.split('.')[-1]
+        print(filename)
+        if extension.lower() in SUPPORT_FORMAT:
+            file.save(os.path.join(upload_path, filename))
+        else:
+            return "not supported format"
 
-    cur.execute("""
-        INSERT INFO
-    """)
-    # TODO: 还没有写完
-    cur.close()
+        try:
+            # 写入数据库
+            cur = mysql.get_db().cursor()
+
+            cur.execute(
+                "INSERT INTO file(taskid, filepath, filename) VALUES({taskid}, '{filepath}', '{filename}')".format(taskid=taskid, filename=filename, filepath=os.path.join(upload_path, filename))
+            )
+
+            cur.close()
+            return jsonencoder(1, "upload success")
+        except Exception as e:
+            print(e) # errors found when updating databases.
+            return jsonencoder(0, e)
+    except Exception as e:
+        print(e)
+        return jsonencoder(0, e)
+
+@app.route('/filedoownload', methods=['post','get'])
+def filedownload():
+    pass 
+    
 
 
 

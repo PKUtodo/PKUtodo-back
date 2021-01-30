@@ -13,7 +13,7 @@
     if(files.length == 0) return;
 
     var form = new FormData(),
-        url = 'http://localhost:5000/fileupload', //服务器上传地址
+        url = 'http://10.128.169.239:5000/fileupload', //服务器上传地址
         file = files[0];
     form.append('file', file);
     var taskid = getUrlParam('taskid');
