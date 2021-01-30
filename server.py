@@ -434,7 +434,7 @@ def respond():  # 视图函数
                     # 验证当前用户是否为list的admin
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
                         data['task_id']))
-                    admin_id = cur.fetchall()[0]
+                    admin_id = cur.fetchall()[0][0]
                     if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
@@ -620,6 +620,7 @@ def respond():  # 视图函数
                 except:
                     cur.close()
                     return jsonencoder(0, 'not existing user or wrong password')
+                #验证是否为班级
                 print(
                     "INSERT INTO class_member VALUES({list_id}, {user_id})".format(
                         list_id=data['list_id'],
@@ -635,6 +636,17 @@ def respond():  # 视图函数
                             user_id=data['user_id']
                         )
                     )
+                    cur.execute(
+                        "SELECT count(*) from class_member where list_id={list_id}".format(list_id=data['list_id'])
+                    )
+                    if cur.fetchall()[0][0] == 1:
+                        print("需要将其设置为管理员")
+                        cur.execute(
+                            "Update list set admin_id={user_id} where id={list_id}".format( 
+                                list_id=data['list_id'],
+                                user_id=data['user_id']
+                            )
+                        )
 
                     # 然后设置所有的作业
                     cur.execute(
@@ -862,6 +874,18 @@ def respond():  # 视图函数
                     if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
+                    
+                    # 转移给的人必须也在这个班级里面
+                    cur.execute(
+                        "SELECT count(*) from class_member where list_id={list_id} and user_id={target_user_id}".format(
+                            list_id=data['list_id'],
+                            target_user_id=data['target_user_id']
+                        )
+                    )
+
+                    if cur.fetchall()[0][0] != 1:
+                        print("member not in the class")
+                        return jsonencoder(0, "member not in the class")
 
                     cur.execute(
                         "UPDATE list set admin_id = {target_user_id} where admin_id = {user_id} and id = {list_id}".format(

@@ -476,7 +476,11 @@ def respond():  # 视图函数
                     # 如果是admin才能对列表进行添加修改操作
                     cur.execute(
                         "SELECT admin_id from list where id={}".format(data['list_id']))
-                    admin_id= cur.fetchall()[0][0]
+                    fetch = cur.fetchall()
+                    if not fetch:
+                        cur.close()
+                        return jsonencoder(0, "No data return")
+                    admin_id= fetch[0][0]
                     if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
