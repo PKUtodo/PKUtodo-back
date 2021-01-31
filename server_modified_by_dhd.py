@@ -536,34 +536,6 @@ def respond():  # 视图函数
                 cur.close()
                 return jsonencoder(1, 'success')
 
-            elif data['type'] == MessageType.modify_assignment:
-                cur = mysql.get_db().cursor()
-                # 验证登录
-                try:
-                    cur.execute(
-                        "SELECT * FROM pkutodo.user WHERE email='{email}' and password='{password}';".
-                        format(email=data['email'], password=data['password']))
-                except:
-                    cur.close()
-                    return jsonencoder(0, 'not existing user or wrong password')
-
-                try:
-                    # 验证当前用户是否为list的admin
-                    cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(\
-                        data['task_id']))
-                    admin_id = cur.fetchall()[0][0]
-                    if admin_id != data['user_id']:
-                        cur.close()
-                        return jsonencoder(0, "No authority to change list")
-
-                    
-                except Exception as e:
-                    print(e)
-                    cur.close()
-                    #print(traceback.print_exc())
-                    return jsonencoder(0, 'Modifying failed.')
-                cur.close()
-                return jsonencoder(1, 'success')
 
             elif data['type'] == MessageType.del_list:
                 cur = mysql.get_db().cursor()

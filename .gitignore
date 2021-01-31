@@ -8,6 +8,8 @@ aliyun.xiaotianxt*
 *.sql
 *.bak
 file/*
+*.pem
+*.control
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

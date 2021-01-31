@@ -1,4 +1,7 @@
-
+"""
+PKUTODO 后端Server代码
+程序默认使用了HTTPS协议，如果没有HTTPS证书请在文件最后使用注释的运行语句运行。
+"""
 from flask import Flask, request  # 导入Flask类
 from re import *
 from flask.helpers import send_from_directory
@@ -119,7 +122,7 @@ def respond():  # 视图函数
         try:
             # print("request: {}". format(request.get_data(as_text=True)))
             data = json.loads(request.get_data(as_text=True))
-            # print(data)
+            print(data)
             if(data['type'] == MessageType.set_up):
                 print(data['type'])
                 verify_code.append((data['email'], random.randint(1000, 9999)))
@@ -527,35 +530,6 @@ def respond():  # 视图函数
                                 )
                             mysql.get_db().commit()
                      
-                except Exception as e:
-                    print(e)
-                    cur.close()
-                    #print(traceback.print_exc())
-                    return jsonencoder(0, 'Modifying failed.')
-                cur.close()
-                return jsonencoder(1, 'success')
-
-            elif data['type'] == MessageType.modify_assignment:
-                cur = mysql.get_db().cursor()
-                # 验证登录
-                try:
-                    cur.execute(
-                        "SELECT * FROM pkutodo.user WHERE email='{email}' and password='{password}';".
-                        format(email=data['email'], password=data['password']))
-                except:
-                    cur.close()
-                    return jsonencoder(0, 'not existing user or wrong password')
-
-                try:
-                    # 验证当前用户是否为list的admin
-                    cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(\
-                        data['task_id']))
-                    admin_id = cur.fetchall()[0][0]
-                    if admin_id != data['user_id']:
-                        cur.close()
-                        return jsonencoder(0, "No authority to change list")
-
-                    
                 except Exception as e:
                     print(e)
                     cur.close()
@@ -1112,4 +1086,5 @@ def filedownload():
 # 监听地址为0.0.0.0,表示服务器的所有网卡
 # 5000是监听端口
 # debug=True表示启动debug模式。当代码有改动时,Flask会自动加载,无序重启！
-app.run("0.0.0.0", 5000, debug=False)  # 启动Flask服务
+# 默认使用https协议运行，如有HTTP需要请删除掉ssl_context参数！
+app.run("0.0.0.0", 5000, ssl_context=('server/5142062_aliyun.xiaotianxt.com_public.crt', 'server/5142062_aliyun.xiaotianxt.com.key'), debug=False)  # 启动Flask服务

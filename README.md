@@ -11,4 +11,4 @@ Backend repo for PKUtodo, a simple to-do list for final project.
 | SQL connection            |   ✅  |
 | Web server                |   ✅  |
 | Email verification        |   ✅  |
-| File handling and storage |   ⌛️  |
+| File handling and storage |   ✅  |
