@@ -100,6 +100,7 @@ def get_task_id(cur, data):
                             )
                         )
     mysql.get_db().commit()
+    test = cur.fetchall()
     return cur.fetchall()[0][-1]
 
 def get_list_id(cur, data):
@@ -117,7 +118,7 @@ def respond():  # 视图函数
         try:
             # print("request: {}". format(request.get_data(as_text=True)))
             data = json.loads(request.get_data(as_text=True))
-            # print(data)
+            print(data)
             if(data['type'] == MessageType.set_up):
                 print(data['type'])
                 verify_code.append((data['email'], random.randint(1000, 9999)))
@@ -182,7 +183,6 @@ def respond():  # 视图函数
                             return jsonencoder(0, "set up fail")
                         return jsonencoder(0, "no such user to set up")
                 except Exception as e:
-                    print(traceback.print_exc())
                     return jsonencoder(0, "unknown failure")
             elif data['type'] == MessageType.login:
                 try:
@@ -314,7 +314,7 @@ def respond():  # 视图函数
                     if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
-
+                    task_id = 0
                     # 现在判断是不是class
                     # print(
                     #     "INSERT INTO task(user_id, list_id, name, content, create_date, due_date, pos_x, pos_y,is_finished)" +
@@ -371,7 +371,7 @@ def respond():  # 视图函数
                         )
                         attr = dict(
                             list_id=data['list_id'],
-                            user_id=-1,
+                            user_id=data['user_id'],
                             task_name=data['task_name'],
                             content=data['content'],
                             create_date=data['create_date'],
@@ -381,6 +381,28 @@ def respond():  # 视图函数
                         )
 
                         mysql.get_db().commit()
+
+                        cur.execute(
+                        "SELECT user_id from class_member where list_id={}".format(data['list_id']))
+                        users = cur.fetchall()
+                        if len(users):
+                            sql_string = "INSERT INTO task(user_id, list_id, name, content, create_date, due_date, pos_x, pos_y) Values"
+                            for i in range(len(users)):
+                                if i:
+                                    sql_string += ","
+                                sql_string += "({user_id}, {list_id}, '{task_name}', '{content}', '{create_date}', '{due_date}', {position_x}, {position_y})".format(
+                                    list_id=data['list_id'],
+                                    user_id=users[i][0],
+                                    task_name=data['task_name'],
+                                    content=data['content'],
+                                    create_date=data['create_date'],
+                                    due_date=data['due_date'],
+                                    position_x=data['position_x'],
+                                    position_y=data['position_y']
+                                )
+                                
+                            cur.execute(sql_string)
+                            mysql.get_db().commit()
                     task_id = get_task_id(cur, attr)
                 except Exception as e:
                     cur.close()
@@ -452,7 +474,8 @@ def respond():  # 视图函数
                             position_y=data['position_y']
                         )
                     )
-                except:
+                except Exception as e:
+                    print(e)
                     cur.close()
                     # print(traceback.print_exc())
                     return jsonencoder(0, 'Modifying failed.')
@@ -479,7 +502,7 @@ def respond():  # 视图函数
                     fetch = cur.fetchall()
                     if not fetch:
                         cur.close()
-                        return jsonencoder(0, "No data return")
+                        return jsonencoder(0, "没有找到对应id的list") 
                     admin_id= fetch[0][0]
                     if admin_id != data["user_id"]:
                         cur.close()
@@ -624,6 +647,7 @@ def respond():  # 视图函数
                 except:
                     cur.close()
                     return jsonencoder(0, 'not existing user or wrong password')
+                #验证是否为班级
                 print(
                     "INSERT INTO class_member VALUES({list_id}, {user_id})".format(
                         list_id=data['list_id'],
@@ -639,6 +663,17 @@ def respond():  # 视图函数
                             user_id=data['user_id']
                         )
                     )
+                    cur.execute(
+                        "SELECT count(*) from class_member where list_id={list_id}".format(list_id=data['list_id'])
+                    )
+                    if cur.fetchall()[0][0] == 1:
+                        print("需要将其设置为管理员")
+                        cur.execute(
+                            "Update list set admin_id={user_id} where id={list_id}".format( 
+                                list_id=data['list_id'],
+                                user_id=data['user_id']
+                            )
+                        )
 
                     # 然后设置所有的作业
                     cur.execute(
@@ -866,6 +901,18 @@ def respond():  # 视图函数
                     if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
+                    
+                    # 转移给的人必须也在这个班级里面
+                    cur.execute(
+                        "SELECT count(*) from class_member where list_id={list_id} and user_id={target_user_id}".format(
+                            list_id=data['list_id'],
+                            target_user_id=data['target_user_id']
+                        )
+                    )
+
+                    if cur.fetchall()[0][0] != 1:
+                        print("member not in the class")
+                        return jsonencoder(0, "member not in the class")
 
                     cur.execute(
                         "UPDATE list set admin_id = {target_user_id} where admin_id = {user_id} and id = {list_id}".format(

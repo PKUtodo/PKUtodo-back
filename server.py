@@ -454,7 +454,7 @@ def respond():  # 视图函数
 
                 try:
                     # 验证当前用户是否为list的admin
-                    cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
+                    cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(\
                         data['task_id']))
                     admin_id = cur.fetchall()[0][0]
                     if admin_id != data['user_id']:
@@ -462,8 +462,7 @@ def respond():  # 视图函数
                         return jsonencoder(0, "No authority to change list")
 
                     cur.execute(
-                        "Update task set name='{task_name}', content='{content}', create_date='{create_date}', due_date='{due_date}'\
-                            , pos_x={position_x}, pos_y={position_y} where id={task_id}".format(
+                        "Update task set name='{task_name}', content='{content}', create_date='{create_date}', due_date='{due_date}', pos_x={position_x}, pos_y={position_y} where id={task_id}".format(
                             task_id=data['task_id'],
                             task_name=data['task_name'],
                             content=data['content'],
@@ -473,10 +472,11 @@ def respond():  # 视图函数
                             position_y=data['position_y']
                         )
                     )
+                    mysql.get_db().commit()
                 except Exception as e:
                     print(e)
                     cur.close()
-                    # print(traceback.print_exc())
+                    #print(traceback.print_exc())
                     return jsonencoder(0, 'Modifying failed.')
                 cur.close()
                 return jsonencoder(1, 'success')
