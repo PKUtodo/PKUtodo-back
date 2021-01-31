@@ -44,8 +44,10 @@ class MessageType():
     add_list = 'add_list'
     modify_task = 'modify_task'
     modify_list = "modify_list"
+    modify_assignment = 'modify_assignment'
     del_task = 'del_task'
     del_list = 'del_list'
+    del_assignment = 'del_assignment'
     finish = 'finish'
     find_list = 'find_list'
     join = 'join'
@@ -538,6 +540,7 @@ def respond():  # 视图函数
                 cur.close()
                 return jsonencoder(1, 'success')
 
+            
             elif data['type'] == MessageType.del_list:
                 cur = mysql.get_db().cursor()
                 # 验证登录
