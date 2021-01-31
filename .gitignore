@@ -10,6 +10,7 @@ aliyun.xiaotianxt*
 file/*
 *.pem
 *.control
+server_modified_by_dhd.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
