@@ -313,7 +313,7 @@ def respond():  # 视图函数
                     if admin_id != data["user_id"]:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
-
+                    task_id = 0
                     # 现在判断是不是class
                     # print(
                     #     "INSERT INTO task(user_id, list_id, name, content, create_date, due_date, pos_x, pos_y,is_finished)" +
@@ -370,7 +370,7 @@ def respond():  # 视图函数
                         )
                         attr = dict(
                             list_id=data['list_id'],
-                            user_id=-1,
+                            user_id=data['user_id'],
                             task_name=data['task_name'],
                             content=data['content'],
                             create_date=data['create_date'],
@@ -380,6 +380,28 @@ def respond():  # 视图函数
                         )
 
                         mysql.get_db().commit()
+
+                        cur.execute(
+                        "SELECT user_id from class_member where list_id={}".format(data['list_id']))
+                        users = cur.fetchall()
+                        if len(users):
+                            sql_string = "INSERT INTO task(user_id, list_id, name, content, create_date, due_date, pos_x, pos_y) Values"
+                            for i in range(len(users)):
+                                if i:
+                                    sql_string += ","
+                                sql_string += "({user_id}, {list_id}, '{task_name}', '{content}', '{create_date}', '{due_date}', {position_x}, {position_y})".format(
+                                    list_id=data['list_id'],
+                                    user_id=users[i][0],
+                                    task_name=data['task_name'],
+                                    content=data['content'],
+                                    create_date=data['create_date'],
+                                    due_date=data['due_date'],
+                                    position_x=data['position_x'],
+                                    position_y=data['position_y']
+                                )
+                                
+                            cur.execute(sql_string)
+                            mysql.get_db().commit()
                     task_id = get_task_id(cur, attr)
                 except Exception as e:
                     cur.close()
@@ -963,4 +985,4 @@ def filedownload():
 # 监听地址为0.0.0.0,表示服务器的所有网卡
 # 5000是监听端口
 # debug=True表示启动debug模式。当代码有改动时,Flask会自动加载,无序重启！
-app.run("0.0.0.0", 8080, debug=False)  # 启动Flask服务
+app.run("0.0.0.0", 5000, debug=False)  # 启动Flask服务
