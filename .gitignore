@@ -1,6 +1,13 @@
 # vscode
 .vscode
 file
+ca
+client
+server
+aliyun.xiaotianxt*
+*.sql
+*.bak
+file/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -100,7 +100,8 @@ def get_task_id(cur, data):
                             )
                         )
     mysql.get_db().commit()
-    return cur.fetchall()[0][-1]
+    fetch = cur.fetchall()
+    return fetch[0][-1]
 
 def get_list_id(cur, data):
     cur.execute(
@@ -109,7 +110,8 @@ def get_list_id(cur, data):
         )
     )
     mysql.get_db().commit()
-    return cur.fetchall()[0][0]
+    fetch = cur.fetchall()
+    return fetch[0][-1]
 
 @app.route("/", methods=["POST", "GET"])  # app中的route装饰器
 def respond():  # 视图函数
@@ -155,7 +157,7 @@ def respond():  # 视图函数
                                 data['email'], data['password'], True)
                     print("verifycode:", data['verify_code'])
                     for email, code in list(reversed(verify_code)):
-                        if (email.lower() == user.email.lower() and str(code) == data['verify_code']):
+                        if (email.lower() == user.email.lower() and str(code) == str(data['verify_code'])):
                             print("Verify code matched.")
                             cur = mysql.get_db().cursor()
                             print(
@@ -182,6 +184,7 @@ def respond():  # 视图函数
                             return jsonencoder(0, "set up fail")
                         return jsonencoder(0, "no such user to set up")
                 except Exception as e:
+
                     return jsonencoder(0, "unknown failure")
             elif data['type'] == MessageType.login:
                 try:
@@ -454,6 +457,97 @@ def respond():  # 视图函数
 
                 try:
                     # 验证当前用户是否为list的admin
+                    cur.execute("select list_id from task where id={}".format(data['task_id']))
+                    mysql.get_db().commit()
+                    list_id = cur.fetchall()[0][0]
+                    cur.execute("SELECT admin_id, is_public from list where id= {}".format(list_id))
+                    mysql.get_db().commit()
+                    admin_id, is_public= cur.fetchall()[0]
+
+                    if admin_id != data['user_id']:
+                        cur.close()
+                        return jsonencoder(0, "No authority to change list")
+
+                    if not is_public:
+                        cur.execute(
+                            "Update task set name='{task_name}', content='{content}', create_date='{create_date}', due_date='{due_date}', pos_x={position_x}, pos_y={position_y} where id={task_id}".format(
+                                task_id=data['task_id'],
+                                task_name=data['task_name'],
+                                content=data['content'],
+                                create_date=data['create_date'],
+                                due_date=data['due_date'],
+                                position_x=data['position_x'],
+                                position_y=data['position_y']
+                            )
+                        )
+                        mysql.get_db().commit()
+                    else:
+                        # 先获取原来的名字作为定位
+                        cur.execute('select name from task where id={}'.format(data['task_id']))
+                        mysql.get_db().commit()
+                        pre_name = cur.fetchall()[0][0]
+
+                        # 处理 user_id=-1的
+                        cur.execute(
+                           "Update task set name='{task_name}', content='{content}', create_date='{create_date}', due_date='{due_date}', pos_x={position_x}, pos_y={position_y} \
+                               where user_id={user_id} and list_id={list_id} and name='{pre_name}'".format(
+                                user_id= -1,
+                                list_id = list_id,
+                                pre_name = pre_name,
+                                task_name=data['task_name'],
+                                content=data['content'],
+                                create_date=data['create_date'],
+                                due_date=data['due_date'],
+                                position_x=data['position_x'],
+                                position_y=data['position_y']
+                            ) 
+                        )
+
+                        # 处理剩下所有选课用户
+                        cur.execute(
+                        "SELECT user_id from class_member where list_id={}".format(list_id))
+                        mysql.get_db().commit()
+                        users = cur.fetchall()
+                        if len(users):
+                            for i in range(len(users)):
+                                cur.execute(
+                                    "Update task set name='{task_name}', content='{content}', create_date='{create_date}', due_date='{due_date}', pos_x={position_x}, pos_y={position_y} \
+                                    where user_id={user_id} and list_id={list_id} and name='{pre_name}'".format(
+                                        user_id= users[i][0],
+                                        list_id = list_id,
+                                        pre_name = pre_name,
+                                        task_name=data['task_name'],
+                                        content=data['content'],
+                                        create_date=data['create_date'],
+                                        due_date=data['due_date'],
+                                        position_x=data['position_x'],
+                                        position_y=data['position_y']
+                                    )
+                           
+                                )
+                            mysql.get_db().commit()
+                     
+                except Exception as e:
+                    print(e)
+                    cur.close()
+                    #print(traceback.print_exc())
+                    return jsonencoder(0, 'Modifying failed.')
+                cur.close()
+                return jsonencoder(1, 'success')
+
+            elif data['type'] == MessageType.modify_assignment:
+                cur = mysql.get_db().cursor()
+                # 验证登录
+                try:
+                    cur.execute(
+                        "SELECT * FROM pkutodo.user WHERE email='{email}' and password='{password}';".
+                        format(email=data['email'], password=data['password']))
+                except:
+                    cur.close()
+                    return jsonencoder(0, 'not existing user or wrong password')
+
+                try:
+                    # 验证当前用户是否为list的admin
                     cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(\
                         data['task_id']))
                     admin_id = cur.fetchall()[0][0]
@@ -461,18 +555,7 @@ def respond():  # 视图函数
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
 
-                    cur.execute(
-                        "Update task set name='{task_name}', content='{content}', create_date='{create_date}', due_date='{due_date}', pos_x={position_x}, pos_y={position_y} where id={task_id}".format(
-                            task_id=data['task_id'],
-                            task_name=data['task_name'],
-                            content=data['content'],
-                            create_date=data['create_date'],
-                            due_date=data['due_date'],
-                            position_x=data['position_x'],
-                            position_y=data['position_y']
-                        )
-                    )
-                    mysql.get_db().commit()
+                    
                 except Exception as e:
                     print(e)
                     cur.close()
@@ -525,18 +608,34 @@ def respond():  # 视图函数
 
                 try:
                     # 验证当前用户是否为list的admin
-                    cur.execute("SELECT admin_id from list where id= (select list_id from task where id={})".format(
-                        data['task_id']))
-                    admin_id = cur.fetchall()[0][0]
+                    cur.execute("select list_id from task where id={}".format(data['task_id']))
+                    mysql.get_db().commit()
+                    list_id = cur.fetchall()[0][0]
+                    cur.execute("SELECT admin_id, is_public from list where id= {}".format(list_id))
+                    mysql.get_db().commit()
+                    admin_id, is_public= cur.fetchall()[0]
+
                     if admin_id != data['user_id']:
                         cur.close()
                         return jsonencoder(0, "No authority to change list")
+                    if not is_public:
+                        print("DELETE FROM task WHERE id = {task_id} ".format(
+                            task_id=data['task_id']))
+                        cur.execute(
+                            "DELETE FROM task WHERE id = {task_id} ".format(task_id=data['task_id']))
+                        mysql.get_db().commit()
+                    else:
+                        # 先获取原来的名字作为定位
+                        cur.execute('select name from task where id={}'.format(data['task_id']))
+                        mysql.get_db().commit()
+                        pre_name = cur.fetchall()[0][0]
 
-                    print("DELETE FROM task WHERE id = {task_id} ".format(
-                        task_id=data['task_id']))
-                    cur.execute(
-                        "DELETE FROM task WHERE id = {task_id} ".format(task_id=data['task_id']))
-                    mysql.get_db().commit()
+                        cur.execute(
+                            "DELETE FROM task WHERE name='{pre_name}' and list_id={list_id} ".format(
+                                pre_name = pre_name,
+                                list_id = list_id
+                                ))
+                        mysql.get_db().commit()
                 except:
                     cur.close()
                     print(traceback.print_exc())
@@ -962,23 +1061,51 @@ def fileupload():
             # 写入数据库
             cur = mysql.get_db().cursor()
 
+            print("INSERT INTO file(taskid, filepath, filename) VALUES({taskid}, '{filepath}', '{filename}')".format(taskid=taskid, filename=filename, filepath=os.path.join(upload_path, filename)))
             cur.execute(
                 "INSERT INTO file(taskid, filepath, filename) VALUES({taskid}, '{filepath}', '{filename}')".format(taskid=taskid, filename=filename, filepath=os.path.join(upload_path, filename))
             )
 
+            mysql.get_db().commit() 
             cur.close()
             return jsonencoder(1, "upload success")
+        except Exception as e:
+            print(e) # errors found when updating databases.
+            return jsonencoder(0, "{}".format(e))
+    except Exception as e:
+        print(e)
+        return jsonencoder(0, e)
+
+@app.route('/filedownload', methods=['post','get'])
+def filedownload():
+    try:
+        task_id = request.values.to_dict()['taskid']
+        # taskid = flask.request.data['taskid']
+        print(task_id)
+        try:
+            # 写入数据库
+            cur = mysql.get_db().cursor()
+
+            cur.execute(
+                "SELECT * FROM file where taskid={}".format(task_id)
+            )
+
+            result = cur.fetchall()
+            cur.close()
+            mysql.get_db().commit() 
+            if len(result) == 1:
+                filename = result[0][2]
+                return send_from_directory('./file', filename.encode('utf-8').decode('utf-8'), as_attachment=True)
+            else:
+                print("file not found")
+                return "file not found"
+
         except Exception as e:
             print(e) # errors found when updating databases.
             return jsonencoder(0, e)
     except Exception as e:
         print(e)
         return jsonencoder(0, e)
-
-@app.route('/filedoownload', methods=['post','get'])
-def filedownload():
-    pass 
-    
 
 
 
